@@ -38,53 +38,56 @@
 
 namespace tf2_ros
 {
-  BufferClient::BufferClient(std::string ns, double check_frequency, tf2::Duration timeout_padding): 
-    client_(ns), 
+  BufferClient::BufferClient(rclcpp::Node::SharedPtr node, std::string ns, double check_frequency, tf2::Duration timeout_padding):
+    client_(rclcpp_action::create_client<tf2_msgs::action::LookupTransform>(node,ns)),
     check_frequency_(check_frequency),
-    timeout_padding_(timeout_padding)
+    timeout_padding_(timeout_padding),
+    node_(node)
   {
   }
 
-  geometry_msgs::TransformStamped BufferClient::lookupTransform(const std::string& target_frame, const std::string& source_frame,
+  geometry_msgs::msg::TransformStamped BufferClient::lookupTransform(const std::string& target_frame, const std::string& source_frame,
       const tf2::TimePoint& time, const tf2::Duration timeout) const
   {
     //populate the goal message
-    tf2_msgs::LookupTransformGoal goal;
+    tf2_msgs::action::LookupTransform::Goal goal;
     goal.target_frame = target_frame;
     goal.source_frame = source_frame;
-    goal.source_time = time;
-    goal.timeout = timeout;
+    goal.source_time = rclcpp::Time(tf2::timeToSec(time));
+    goal.timeout = rclcpp::Duration(timeout);
     goal.advanced = false;
 
     return processGoal(goal);
   }
 
-  geometry_msgs::TransformStamped BufferClient::lookupTransform(const std::string& target_frame, const tf2::TimePoint& target_time,
+  geometry_msgs::msg::TransformStamped BufferClient::lookupTransform(const std::string& target_frame, const tf2::TimePoint& target_time,
       const std::string& source_frame, const tf2::TimePoint& source_time,
       const std::string& fixed_frame, const tf2::Duration timeout) const
   {
     //populate the goal message
-    tf2_msgs::LookupTransformGoal goal;
+    tf2_msgs::action::LookupTransform::Goal goal;
     goal.target_frame = target_frame;
     goal.source_frame = source_frame;
-    goal.source_time = source_time;
-    goal.timeout = timeout;
-    goal.target_time = target_time;
+    goal.source_time = rclcpp::Time(tf2::timeToSec(source_time));
+    goal.timeout = rclcpp::Duration(timeout);
+    goal.target_time = rclcpp::Time(tf2::timeToSec(target_time));
     goal.fixed_frame = fixed_frame;
     goal.advanced = true;
 
     return processGoal(goal);
   }
 
-  geometry_msgs::TransformStamped BufferClient::processGoal(const tf2_msgs::LookupTransformGoal& goal) const
+  geometry_msgs::msg::TransformStamped BufferClient::processGoal(const tf2_msgs::action::LookupTransform::Goal& goal) const
   {
-    client_.sendGoal(goal);
-    ros::Rate r(check_frequency_);
+    auto goal_handle_future = client_->async_send_goal(goal);
+    auto result_future = goal_handle_future.get()->async_result();
+    client_->async_send_goal(goal);
+    rclcpp::Rate r(check_frequency_);
     bool timed_out = false;
     tf2::TimePoint start_time = tf2::get_now();
-    while(ros::ok() && !client_.getState().isDone() && !timed_out)
+    while(rclcpp::ok() && (rclcpp::spin_until_future_complete(node_, result_future) != rclcpp::executor::FutureReturnCode::SUCCESS) && !timed_out)
     {
-      timed_out = tf2::get_now() > start_time + goal.timeout + timeout_padding_;
+      timed_out = rclcpp::Time(tf2::timeToSec(tf2::get_now())) > rclcpp::Time(tf2::timeToSec(start_time)) + goal.timeout + rclcpp::Duration(timeout_padding_);
       r.sleep();
     }
 
@@ -92,44 +95,45 @@ namespace tf2_ros
     if(timed_out)
     {
       //make sure to cancel the goal the server is pursuing
-      client_.cancelGoal();
+      client_->async_cancel_goal(goal_handle_future.get());
       throw tf2::TimeoutException("The LookupTransform goal sent to the BufferServer did not come back in the specified time. Something is likely wrong with the server.");
     }
 
-    if(client_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
+    if(result_future.get().code != rclcpp_action::ResultCode::SUCCEEDED)
       throw tf2::TimeoutException("The LookupTransform goal sent to the BufferServer did not come back with SUCCEEDED status. Something is likely wrong with the server.");
 
-    //process the result for errors and return it
-    return processResult(*client_.getResult());
+    //process the result for errors and return it.
+    return processResult(result_future.get().result);
+    // result_future.get().result
   }
 
-  geometry_msgs::TransformStamped BufferClient::processResult(const tf2_msgs::LookupTransformResult& result) const
+  geometry_msgs::msg::TransformStamped BufferClient::processResult(const tf2_msgs::action::LookupTransform::Result::SharedPtr& result) const
   {
     //if there's no error, then we'll just return the transform
-    if(result.error.error != result.error.NO_ERROR){
+    if(result->error.error != result->error.NO_ERROR){
       //otherwise, we'll have to throw the appropriate exception
-      if(result.error.error == result.error.LOOKUP_ERROR)
-        throw tf2::LookupException(result.error.error_string);
+      if(result->error.error == result->error.LOOKUP_ERROR)
+        throw tf2::LookupException(result->error.error_string);
 
-      if(result.error.error == result.error.CONNECTIVITY_ERROR)
-        throw tf2::ConnectivityException(result.error.error_string);
+      if(result->error.error == result->error.CONNECTIVITY_ERROR)
+        throw tf2::ConnectivityException(result->error.error_string);
 
-      if(result.error.error == result.error.EXTRAPOLATION_ERROR)
-        throw tf2::ExtrapolationException(result.error.error_string);
+      if(result->error.error == result->error.EXTRAPOLATION_ERROR)
+        throw tf2::ExtrapolationException(result->error.error_string);
 
-      if(result.error.error == result.error.INVALID_ARGUMENT_ERROR)
-        throw tf2::InvalidArgumentException(result.error.error_string);
+      if(result->error.error == result->error.INVALID_ARGUMENT_ERROR)
+        throw tf2::InvalidArgumentException(result->error.error_string);
 
-      if(result.error.error == result.error.TIMEOUT_ERROR)
-        throw tf2::TimeoutException(result.error.error_string);
+      if(result->error.error == result->error.TIMEOUT_ERROR)
+        throw tf2::TimeoutException(result->error.error_string);
 
-      throw tf2::TransformException(result.error.error_string);
+      throw tf2::TransformException(result->error.error_string);
     }
 
-    return result.transform;
+    return result->transform;
   }
 
-  bool BufferClient::canTransform(const std::string& target_frame, const std::string& source_frame, 
+  bool BufferClient::canTransform(const std::string& target_frame, const std::string& source_frame,
         const tf2::TimePoint& time, const tf2::Duration timeout, std::string* errstr) const
   {
     try

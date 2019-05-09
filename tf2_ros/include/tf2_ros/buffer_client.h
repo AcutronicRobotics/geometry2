@@ -39,8 +39,10 @@
 
 #include <tf2_ros/buffer_interface.h>
 #include <tf2_ros/visibility_control.h>
-#include <actionlib/client/simple_action_client.h>
-#include <tf2_msgs/LookupTransformAction.h>
+#include "rclcpp_action/rclcpp_action.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "tf2_msgs/action/lookup_transform.hpp"
+
 
 namespace tf2_ros
 {
@@ -53,7 +55,7 @@ namespace tf2_ros
   class BufferClient : public BufferInterface
   {
     public:
-      typedef actionlib::SimpleActionClient<tf2_msgs::LookupTransformAction> LookupActionClient;
+      typedef std::shared_ptr<rclcpp_action::Client<tf2_msgs::action::LookupTransform>> LookupActionClient;
 
       /** \brief BufferClient constructor
        * \param ns The namespace in which to look for a BufferServer
@@ -61,7 +63,7 @@ namespace tf2_ros
        * \param timeout_padding The amount of time to allow passed the desired timeout on the client side for communication lag
        */
       TF2_ROS_PUBLIC
-      BufferClient(std::string ns, double check_frequency = 10.0, tf2::Duration timeout_padding = tf2::durationFromSec(2.0));
+      BufferClient(rclcpp::Node::SharedPtr node, std::string ns, double check_frequency = 10.0, tf2::Duration timeout_padding = tf2::durationFromSec(2.0));
 
       /** \brief Get the transform between two frames by frame ID.
        * \param target_frame The frame to which data should be transformed
@@ -74,7 +76,7 @@ namespace tf2_ros
        * tf2::ExtrapolationException, tf2::InvalidArgumentException
        */
       TF2_ROS_PUBLIC
-      virtual geometry_msgs::TransformStamped
+      virtual geometry_msgs::msg::TransformStamped
         lookupTransform(const std::string& target_frame, const std::string& source_frame,
             const tf2::TimePoint& time, const tf2::Duration timeout = tf2::durationFromSec(0.0)) const;
 
@@ -83,7 +85,7 @@ namespace tf2_ros
        * \param target_time The time to which the data should be transformed. (0 will get the latest)
        * \param source_frame The frame where the data originated
        * \param source_time The time at which the source_frame should be evaluated. (0 will get the latest)
-       * \param fixed_frame The frame in which to assume the transform is constant in time. 
+       * \param fixed_frame The frame in which to assume the transform is constant in time.
        * \param timeout How long to block before failing
        * \return The transform between the frames
        *
@@ -91,7 +93,7 @@ namespace tf2_ros
        * tf2::ExtrapolationException, tf2::InvalidArgumentException
        */
       TF2_ROS_PUBLIC
-      virtual geometry_msgs::TransformStamped 
+      virtual geometry_msgs::msg::TransformStamped
         lookupTransform(const std::string& target_frame, const tf2::TimePoint& target_time,
             const std::string& source_frame, const tf2::TimePoint& source_time,
             const std::string& fixed_frame, const tf2::Duration timeout = tf2::durationFromSec(0.0)) const;
@@ -102,11 +104,11 @@ namespace tf2_ros
        * \param time The time at which to transform
        * \param timeout How long to block before failing
        * \param errstr A pointer to a string which will be filled with why the transform failed, if not NULL
-       * \return True if the transform is possible, false otherwise 
+       * \return True if the transform is possible, false otherwise
        */
       TF2_ROS_PUBLIC
       virtual bool
-        canTransform(const std::string& target_frame, const std::string& source_frame, 
+        canTransform(const std::string& target_frame, const std::string& source_frame,
             const tf2::TimePoint& time, const tf2::Duration timeout = tf2::durationFromSec(0.0), std::string* errstr = NULL) const;
 
       /** \brief Test if a transform is possible
@@ -117,7 +119,7 @@ namespace tf2_ros
        * \param fixed_frame The frame in which to treat the transform as constant in time
        * \param timeout How long to block before failing
        * \param errstr A pointer to a string which will be filled with why the transform failed, if not NULL
-       * \return True if the transform is possible, false otherwise 
+       * \return True if the transform is possible, false otherwise
        */
       TF2_ROS_PUBLIC
       virtual bool
@@ -132,15 +134,16 @@ namespace tf2_ros
       TF2_ROS_PUBLIC
       bool waitForServer(const tf2::Duration& timeout = tf2::durationFromSec(0))
       {
-        return client_.waitForServer(timeout);
+        return client_->wait_for_action_server(std::chrono::seconds((long int)tf2::durationToSec(timeout)));
       }
 
     private:
-      geometry_msgs::TransformStamped processGoal(const tf2_msgs::LookupTransformGoal& goal) const;
-      geometry_msgs::TransformStamped processResult(const tf2_msgs::LookupTransformResult& result) const;
+      geometry_msgs::msg::TransformStamped processGoal(const tf2_msgs::action::LookupTransform::Goal& goal) const;
+      geometry_msgs::msg::TransformStamped processResult(const tf2_msgs::action::LookupTransform::Result::SharedPtr& result) const;
       mutable LookupActionClient client_;
       double check_frequency_;
       tf2::Duration timeout_padding_;
+      rclcpp::Node::SharedPtr node_;
   };
 };
 #endif

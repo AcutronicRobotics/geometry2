@@ -11,9 +11,6 @@ if(NOT ANDROID)
 endif()
 
 find_package(ament_cmake REQUIRED)
-# TODO(tfoote) uncomment when reenabling server client interfaces
-# find_package(actionlib REQUIRED)
-# find_package(actionlib_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -35,7 +32,7 @@ add_library(${PROJECT_NAME} SHARED
   src/buffer.cpp
   src/transform_listener.cpp
   src/buffer_client.cpp
-  # src/buffer_server.cpp
+  src/buffer_server.cpp
   src/transform_broadcaster.cpp
   src/static_transform_broadcaster.cpp
 )
@@ -179,9 +176,11 @@ add_rostest(test/transform_listener_time_reset_test.launch)
 endif()
 endif()
 
+
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME})
 ament_export_dependencies(rclcpp)
+ament_export_dependencies(rclcpp_action)
 ament_export_dependencies(tf2_msgs)
 ament_export_dependencies(tf2)
 ament_package()

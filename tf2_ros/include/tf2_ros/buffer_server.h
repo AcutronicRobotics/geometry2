@@ -37,23 +37,24 @@
 #ifndef TF2_ROS_BUFFER_SERVER_H_
 #define TF2_ROS_BUFFER_SERVER_H_
 
-#include <actionlib/server/action_server.h>
-#include <tf2_msgs/LookupTransformAction.h>
+#include "rclcpp_action/rclcpp_action.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include <tf2_msgs/action/lookup_transform.hpp>
 #include <geometry_msgs/msg/transform_stamped.h>
 #include <tf2_ros/buffer.h>
 
 namespace tf2_ros
 {
   /** \brief Action server for the actionlib-based implementation of tf2_ros::BufferInterface.
-   * 
+   *
    * Use this class with a tf2_ros::TransformListener in the same process.
    * You can use this class with a tf2_ros::BufferClient in a different process.
    */
   class BufferServer
   {
     private:
-      typedef actionlib::ActionServer<tf2_msgs::LookupTransformAction> LookupTransformServer;
-      typedef LookupTransformServer::GoalHandle GoalHandle;
+      typedef std::shared_ptr<rclcpp_action::Server<tf2_msgs::action::LookupTransform>> LookupTransformServer;
+      typedef std::shared_ptr<rclcpp_action::ServerGoalHandle<tf2_msgs::action::LookupTransform>> GoalHandle;
 
       struct GoalInfo
       {
@@ -76,17 +77,17 @@ namespace tf2_ros
       void start();
 
     private:
-      void goalCB(GoalHandle gh);
-      void cancelCB(GoalHandle gh);
-      void checkTransforms(const tf2::TimePointrEvent& e);
+      rclcpp_action::GoalResponse goalCB(const rclcpp_action::GoalUUID & uuid,const std::shared_ptr<rclcpp_action::ServerGoalHandle<tf2_msgs::action::LookupTransform>> gh);
+      void cancelCB(const std::shared_ptr<rclcpp_action::ServerGoalHandle<tf2_msgs::action::LookupTransform>> gh);
+      // void checkTransforms(const tf2::TimePointrEvent& e);
       bool canTransform(GoalHandle gh);
-      geometry_msgs::TransformStamped lookupTransform(GoalHandle gh);
+      geometry_msgs::msg::TransformStamped lookupTransform(GoalHandle gh);
 
       const Buffer& buffer_;
       LookupTransformServer server_;
       std::list<GoalInfo> active_goals_;
       std::mutex mutex_;
-      tf2::TimePointr check_timer_;
+      // tf2::TimePointr check_timer_;
   };
 }
 #endif

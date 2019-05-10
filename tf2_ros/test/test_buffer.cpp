@@ -33,7 +33,6 @@
 #include <tf2_ros/transform_listener.h>
 #include <rclcpp/rclcpp.hpp>
 
-
 using namespace tf2;
 
 TEST(test_buffer, construct_with_null_clock)
@@ -74,6 +73,6 @@ TEST(test_buffer, can_transform_valid_transform)
 
 int main(int argc, char **argv){
   testing::InitGoogleTest(&argc, argv);
+  rclcpp::init(argc, argv);
   return RUN_ALL_TESTS();
 }
-

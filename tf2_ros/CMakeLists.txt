@@ -11,9 +11,8 @@ if(NOT ANDROID)
 endif()
 
 find_package(ament_cmake REQUIRED)
-# TODO(tfoote) uncomment when reenabling server client interfaces
-# find_package(actionlib REQUIRED)
-# find_package(actionlib_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -32,19 +31,26 @@ include_directories(include
 add_library(${PROJECT_NAME} SHARED
   src/buffer.cpp
   src/transform_listener.cpp
-  # src/buffer_client.cpp
-  # src/buffer_server.cpp
+  src/buffer_client.cpp
+  src/buffer_server.cpp
   src/transform_broadcaster.cpp
   src/static_transform_broadcaster.cpp
 )
 
+ament_target_dependencies(${PROJECT_NAME}
+  geometry_msgs
+  message_filters
+  rclcpp
+  rclcpp_action
+  tf2
+  tf2_msgs
+)
+
 target_link_libraries(${PROJECT_NAME}
-  ${geometry_msgs_LIBRARIES}
-  ${message_filters_LIBRARIES}
-  ${rclcpp_LIBRARIES}
-  ${tf2_LIBRARIES}
-  ${tf2_msgs_LIBRARIES}
-  )
+)
+
+target_include_directories(${PROJECT_NAME} PUBLIC
+)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE "TF2_ROS_BUILDING_DLL")
 
@@ -114,10 +120,10 @@ install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION include/${PROJECT_NAME}
 )
 
-
 # Tests
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+
   ament_add_gtest(test_buffer test/test_buffer.cpp)
   target_link_libraries(test_buffer ${PROJECT_NAME})
 
@@ -126,53 +132,35 @@ if(BUILD_TESTING)
   ament_add_gtest(${PROJECT_NAME}_test_message_filter test/message_filter_test.cpp)
   target_link_libraries(${PROJECT_NAME}_test_message_filter ${PROJECT_NAME})
 
-# TODO(tfoote) port tests to use ROS2 instead of ROS1 api.
-if (false)
+  ament_add_gtest(${PROJECT_NAME}_test_time_reset test/time_reset_test.cpp)
+  ament_target_dependencies(${PROJECT_NAME}_test_time_reset
+    rclcpp
+  )
+  target_link_libraries(${PROJECT_NAME}_test_time_reset
+    ${PROJECT_NAME}
+  )
 
-# new requirements for testing
-find_package(catkin REQUIRED COMPONENTS
-  actionlib
-  actionlib_msgs
-  geometry_msgs
-  message_filters
-  roscpp
-  rosgraph
-  rospy
-  rostest
-  tf2
-  tf2_msgs
-  ${TF2_PY}
-)
-
-# tf2_ros_test_listener
-add_executable(${PROJECT_NAME}_test_listener EXCLUDE_FROM_ALL test/listener_unittest.cpp)
-add_dependencies(${PROJECT_NAME}_test_listener tf2_msgs_gencpp)
-add_executable(${PROJECT_NAME}_test_time_reset EXCLUDE_FROM_ALL test/time_reset_test.cpp)
-add_dependencies(${PROJECT_NAME}_test_time_reset tf2_msgs_gencpp)
-target_link_libraries(${PROJECT_NAME}_test_listener
-  ${PROJECT_NAME}
-  ${catkin_LIBRARIES}
-  ${GTEST_LIBRARIES}
-)
-
-target_link_libraries(${PROJECT_NAME}_test_time_reset
-  ${PROJECT_NAME}
-  ${catkin_LIBRARIES}
-  ${GTEST_LIBRARIES}
-)
-
-add_dependencies(tests ${PROJECT_NAME}_test_listener)
-add_dependencies(tests ${PROJECT_NAME}_test_time_reset)
-
-add_rostest(test/transform_listener_unittest.launch)
-add_rostest(test/transform_listener_time_reset_test.launch)
-
-endif()
+  ament_add_gtest(${PROJECT_NAME}_test_listener test/listener_unittest.cpp
+  )
+  ament_target_dependencies(${PROJECT_NAME}_test_listener
+  rclcpp
+  )
+  target_link_libraries(${PROJECT_NAME}_test_listener
+    ${PROJECT_NAME}
+  )
+  # install executables
+  install(TARGETS
+    ${PROJECT_NAME}_test_listener
+    ${PROJECT_NAME}_test_time_reset
+    ${PROJECT_NAME}_test_message_filter
+    DESTINATION lib/${PROJECT_NAME}
+  )
 endif()
 
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME})
 ament_export_dependencies(rclcpp)
+ament_export_dependencies(rclcpp_action)
 ament_export_dependencies(tf2_msgs)
 ament_export_dependencies(tf2)
 ament_package()

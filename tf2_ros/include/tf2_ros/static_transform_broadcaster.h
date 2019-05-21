@@ -54,6 +54,19 @@ public:
   TF2_ROS_PUBLIC
   StaticTransformBroadcaster(rclcpp::Node::SharedPtr node);
 
+  template<class AllocatorT = std::allocator<void>>
+  StaticTransformBroadcaster(
+    rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr node_topics_interface)
+  {
+    auto qos = rclcpp::QoS(rclcpp::KeepLast(100));
+    // TODO(tfoote) latched equivalent
+
+    using MessageT = tf2_msgs::msg::TFMessage;
+    using PublisherT = ::rclcpp::Publisher<MessageT, AllocatorT>;
+    publisher_ = rclcpp::create_publisher<MessageT, AllocatorT, PublisherT>(
+      node_topics_interface, "/tf_static", qos);
+  }
+
   /** \brief Send a TransformStamped message
    * The stamped data structure includes frame_id, and time, and parent_id already.  */
   TF2_ROS_PUBLIC
@@ -66,7 +79,6 @@ public:
 
 private:
   /// Internal reference to ros::Node
-  rclcpp::Node::SharedPtr node_;
   rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr publisher_;
   tf2_msgs::msg::TFMessage net_message_;
 
